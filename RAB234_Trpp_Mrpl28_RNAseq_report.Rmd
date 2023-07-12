@@ -1,0 +1,625 @@
+---
+title: "RAB234_Trpp_Mrpl28_RNAseq_report"
+author: "Marion Hardy"
+date: "2023-06-15"
+output: 
+  html_document:
+    toc: true 
+    theme: spacelab 
+    highlight: monochrome
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, cache = TRUE, echo = FALSE, warning = F, cache.lazy = F)
+knitr::opts_chunk$set(fig.width=10, fig.height=15) 
+
+library(rjson)
+library(tidyverse)
+library(ggrepel)
+library(clusterProfiler)
+library(msigdbr)
+library(readxl)
+
+```
+
+
+```{r Data loading, include=FALSE}
+
+res_tbl <- read_csv("./data_output/Trpp_Mrpl_vs_Scr/res_tbl.csv")
+diff <- read_csv("./data_output/Trpp_Mrpl_vs_Scr/res_tbl_signif.csv")
+res_tbl1 <-  res_tbl %>% filter(!is.na(ENTREZID), padj<0.05)
+
+```
+
+# Introduction
+
+Data from  RAB : CD8+ T cells from mice
+
+- Cell types: not nucleofected, scramble, Ndufa2 KO, Mrpl28 KO
+
+-   Conditions: treated w/ or w/o Tryptophan
+
+-   Biological replicates (3)
+
+# Volcano plot 
+
+```{r, fig.height = 12, fig.width = 15}
+
+res_tbl %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) > 1, 
+             label = ifelse(padj<0.05&log2FoldChange>=1|
+                              padj<0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "firebrick3")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  geom_text_repel(max.overlaps = 15,
+                  box.padding = 0.25,
+                  segment.color = 'grey50',
+                  fontface = "italic")+
+  labs(title = "Mrpl28 KO vs scramble cells in Trp+ medium")+
+  theme_bw()
+
+```
+
+Getting some stats yay
+
+```{r, echo=TRUE}
+
+table(res_tbl$padj<=0.05) # significant genes
+
+table(res_tbl$padj<=0.05&res_tbl$log2FoldChange<=-1) # signif and downreg
+
+table(res_tbl$padj<=0.05&res_tbl$log2FoldChange>=1) # signif and upreg
+
+```
+
+# GSEA analysis logFc
+
+```{r}
+
+ordered_genes_fc <- res_tbl1$log2FoldChange
+names(ordered_genes_fc) <- res_tbl1$gene
+ordered_genes_fc <- sort(ordered_genes_fc, decreasing = T)
+
+```
+
+```{r}
+
+mm_GO_sets <- msigdbr(
+  species = "Mus musculus", 
+  category = "C5",
+  subcategory = "BP") # for gene ontology collection
+
+mm_reactome_sets <- msigdbr(
+  species = "Mus musculus", 
+  category = "C2",
+  subcategory = "CP:REACTOME") # for reactome collection
+
+mm_wiki_sets <- msigdbr(
+  species = "Mus musculus", 
+  category = "C2",
+  subcategory = "CP:WIKIPATHWAYS") # for Wikipathways collection
+
+mm_pert_sets <- msigdbr(
+  species = "Mus musculus", 
+  category = "C2",
+  subcategory = "CGP")
+
+mm_hallmark_sets <- msigdbr(
+  species = "Mus musculus", 
+  category = "H") # for hallmark collection
+
+mm_GO_gl = 
+  mm_GO_sets %>% 
+  filter(grepl("glycoly", gs_name, ignore.case = T)) %>% 
+  rbind(mm_hallmark_sets %>% filter(grepl("glycoly", gs_name, ignore.case = T))) %>% 
+  rbind(mm_reactome_sets %>% filter(grepl("glycoly", gs_name, ignore.case = T)))
+
+mm_GO_ox  = 
+  mm_GO_sets %>% 
+  filter(grepl("oxidative", gs_name, ignore.case = T)|
+         grepl("respiration", gs_name, ignore.case = T)) %>% 
+  rbind(mm_hallmark_sets %>% filter(grepl("oxidative", gs_name, ignore.case = T),
+         grepl("respiration", gs_name, ignore.case = T)) %>% 
+  rbind(mm_reactome_sets %>% filter(grepl("oxidative", gs_name, ignore.case = T))))
+
+```
+
+
+## Gene ontology
+
+```{r, fig.height=8, fig.width=8}
+
+gsea_results_go <- GSEA(
+  geneList = ordered_genes_fc, 
+  pvalueCutoff = 0.1, 
+  eps = 0, 
+  pAdjustMethod = "BH", 
+  nPermSimple = 10000,
+  TERM2GENE = dplyr::select(
+    mm_GO_sets,
+    gs_name,
+    gene_symbol
+  )
+)
+
+dotplot(gsea_results_go, x = "NES", showCategory = 30, font.size = 8)+ 
+  ggtitle("GSEA LFC Gene ontology")
+
+gsea_results_go %>% 
+  as_tibble() %>% 
+  select(ID, setSize,	enrichmentScore,	NES,	pvalue,	p.adjust,	qvalue) %>%
+  knitr::kable()
+
+```
+
+## Reactome
+
+```{r, fig.height=6, fig.width=8}
+
+gsea_results_reac <- GSEA(
+  geneList = ordered_genes_fc, 
+  pvalueCutoff = 0.1, 
+  eps = 0, 
+  seed = TRUE, 
+  pAdjustMethod = "BH", 
+  nPermSimple = 10000, 
+  TERM2GENE = dplyr::select(
+    mm_reactome_sets,
+    gs_name,
+    gene_symbol
+  )
+)
+
+# dotplot(gsea_results_reac, x = "NES", showCategory = 30, font.size = 8)+ 
+#   ggtitle("GSEA LFC Reactome")
+# 
+# gsea_results_reac %>%
+#   as_tibble() %>%
+#   select(ID, setSize,	enrichmentScore,	NES,	pvalue,	p.adjust,	qvalue) %>%
+#   knitr::kable()
+```
+
+No results
+
+## Wikipathways
+
+```{r, fig.height=5, fig.width=8}
+
+gsea_results_wiki <- GSEA(
+  geneList = ordered_genes_fc, 
+  pvalueCutoff = 0.5, 
+  seed = TRUE, 
+  pAdjustMethod = "BH", 
+  TERM2GENE = dplyr::select(
+    mm_wiki_sets,
+    gs_name,
+    gene_symbol
+  )
+)
+
+# dotplot(gsea_results_wiki, x = "NES", showCategory = 30)+ ggtitle("GSEA LFC Wikipathways")
+# 
+# gsea_results_wiki %>% 
+#   as_tibble() %>% 
+#   select(ID, setSize,	enrichmentScore,	NES,	pvalue,	p.adjust,	qvalue) %>%
+#   knitr::kable()
+
+```
+
+No results
+
+## Perturbations
+
+```{r, fig.height=10, fig.width=8}
+
+gsea_results_pert <- GSEA(
+  geneList = ordered_genes_fc, 
+  pvalueCutoff = 0.5, 
+  seed = TRUE, 
+  pAdjustMethod = "BH", 
+  TERM2GENE = dplyr::select(
+    mm_pert_sets,
+    gs_name,
+    gene_symbol
+  )
+)
+
+# dotplot(gsea_results_pert, x = "NES", showCategory = 30, font.size = 8)+
+#   ggtitle("GSEA LFC genetic perturbations")
+# 
+# gsea_results_pert %>% 
+#   as_tibble() %>% 
+#   select(ID, setSize,	enrichmentScore,	NES,	pvalue,	p.adjust,	qvalue) %>%
+#   head(15) %>% 
+#   knitr::kable()
+
+```
+
+No results
+
+## Hallmarks
+
+```{r, fig.height=5, fig.width=8}
+
+gsea_results_hall <- GSEA(
+  geneList = ordered_genes_fc,
+  pvalueCutoff = 0.5, 
+  seed = TRUE, 
+  pAdjustMethod = "BH", 
+  TERM2GENE = dplyr::select(
+    mm_hallmark_sets,
+    gs_name,
+    gene_symbol
+  )
+)
+
+# dotplot(gsea_results_hall, x = "NES", showCategory = 30, font.size = 8)+ 
+#   ggtitle("GSEA LFC hallmark")
+# 
+# gsea_results_hall %>% 
+#   as_tibble() %>% 
+#   select(ID, setSize,	enrichmentScore,	NES,	pvalue,	p.adjust,	qvalue) %>%
+#   knitr::kable()
+
+```
+
+No results
+
+# ORA
+
+```{r, fig.height = 6, fig.width = 7}
+
+up = res_tbl1 %>% filter(abs(log2FoldChange) >= 1)
+up = up$gene
+
+ora_results <- enricher(
+  gene = up, 
+  pvalueCutoff = 0.05, 
+  pAdjustMethod = "BH", 
+  TERM2GENE = dplyr::select(
+    mm_GO_sets,
+    gs_name,
+    gene_symbol
+  )
+)
+
+ora_results %>% 
+  dotplot(showCategory = 30, font.size = 8)+ 
+  ggtitle("Over-representation analysis")
+
+ora_results %>%
+  as_tibble() %>%
+  select(ID, GeneRatio,	p.adjust,	qvalue, geneID) %>%
+  knitr::kable()
+
+dim(ora_results)
+```
+
+
+# Specific pathways signatures
+## The oxphos signature
+
+```{r}
+
+GO_ox = read_tsv("./data/GO_term_oxphos.txt")
+
+```
+
+Highlight on the volcano plot of the genes found to be implicated in oxphos + table
+
+```{r, fig.height = 6, fig.width = 7}
+
+target = res_tbl1 %>% 
+  filter(gene%in%GO_ox$Symbol)
+
+res_tbl %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) > 1, 
+             label = ifelse(padj<0.05&log2FoldChange>=1|
+                              padj<0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "lightcoral")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  labs(title = "Mrpl28 KO vs Scramble in Trp+")+
+  theme_bw()+
+  geom_point(data=target, 
+             aes(x=log2FoldChange,y=-log10(padj)), 
+             color='blue',
+             size=0.5)+
+  geom_text_repel(data = target, size = 3, segment.color = "blue",
+                  max.overlaps = 50, min.segment.length = 0, color = "blue",
+                  box.padding = 0.5)+
+  theme(legend.title= element_blank())
+
+target %>% 
+  select(gene, log2FoldChange, padj, description) %>% 
+  arrange(gene) %>% 
+  knitr::kable()
+
+```
+
+### GSEA on filtered terms from GO, Reactome, Hallmark
+
+```{r, fig.height = 5, fig.width = 6, eval = FALSE}
+
+table(names(ordered_genes_fc) %in% mm_GO_ox$gene_symbol)
+
+gsea_results_gl <- GSEA(
+  geneList = ordered_genes_fc, 
+  pvalueCutoff = 1, 
+  eps = 0, 
+  seed = TRUE, 
+  pAdjustMethod = "BH", 
+  nPermSimple = 100000, 
+  TERM2GENE = dplyr::select(
+    mm_GO_ox,
+    gs_name,
+    gene_symbol
+  )
+)
+
+dotplot(gsea_results_gl, x = "NES", showCategory = 30, font.size = 8)+ 
+  ggtitle("GSEA LFC OXPHOS")
+
+gsea_results_gl %>%
+  as_tibble() %>%
+  select(1:9) %>%
+  knitr::kable()
+
+```
+
+```{r, fig.height = 3, fig.width = 7, eval = FALSE}
+
+library(fgsea)
+plotEnrichment(gsea_results_gl[["GOBP_OXIDATIVE_PHOSPHORYLATION"]],
+               ordered_genes_fc) + labs(title="Glycolysis")
+
+```
+
+
+## The glycolytic process
+
+```{r}
+
+GO_gl = read_tsv("./data/GO_term_glycolytic process.txt")
+
+```
+
+Highlight on the volcano plot of the genes found to be implicated in glycolysis + table
+
+```{r, fig.height = 6, fig.width = 7}
+
+target = res_tbl1 %>% 
+  filter(gene%in%GO_gl$Symbol)
+
+res_tbl %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) > 1, 
+             label = ifelse(padj<0.05&log2FoldChange>=1|
+                              padj<0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "lightcoral")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  labs(title = "Mrpl28 KO vs Scramble in Trpp")+
+  theme_bw()+
+  geom_point(data=target, 
+             aes(x=log2FoldChange,y=-log10(padj)), 
+             color='blue',
+             size=0.5)+
+  geom_text_repel(data = target, size = 3, segment.color = "blue",
+                  max.overlaps = 50, min.segment.length = 0, color = "blue",
+                  box.padding = 0.5)+
+  theme(legend.title= element_blank())
+
+target %>% 
+  select(gene, log2FoldChange, padj, description) %>% 
+  arrange(gene) %>%
+  knitr::kable()
+
+```
+
+### GSEA on filtered terms from GO, Reactome, Hallmark
+
+```{r, fig.height = 5, fig.width = 6}
+
+table(names(ordered_genes_fc) %in% mm_GO_gl$gene_symbol)
+
+gsea_results_gl <- GSEA(
+  geneList = ordered_genes_fc, 
+  pvalueCutoff = 1, 
+  eps = 0, 
+  seed = TRUE, 
+  pAdjustMethod = "BH", 
+  nPermSimple = 100000, 
+  TERM2GENE = dplyr::select(
+    mm_GO_gl,
+    gs_name,
+    gene_symbol
+  )
+)
+
+dotplot(gsea_results_gl, x = "NES", showCategory = 30, font.size = 8)+ 
+  ggtitle("GSEA LFC Glycolysis")
+
+gsea_results_gl %>%
+  as_tibble() %>%
+  select(1:9) %>%
+  knitr::kable()
+
+```
+
+```{r, fig.height = 3, fig.width = 7}
+
+library(fgsea)
+plotEnrichment(gsea_results_gl[["HALLMARK_GLYCOLYSIS"]],
+               ordered_genes_fc) + labs(title="Glycolysis")
+
+```
+
+### ORA
+
+```{r, fig.height = 6, fig.width = 7}
+
+bckgrd = res_tbl1 %>% filter(abs(log2FoldChange)>=1)
+  
+up = res_tbl1 %>% filter(abs(log2FoldChange) >= 1)
+up = up$gene
+
+table(up %in% mm_GO_gl$gene_symbol)
+
+ora_results <- enricher(
+  gene = up, 
+  pvalueCutoff = 0.05, 
+  pAdjustMethod = "BH", 
+  minGSSize = 10,
+  universe = res_tbl1$gene,
+  TERM2GENE = dplyr::select(
+    mm_GO_gl,
+    gs_name,
+    gene_symbol
+  )
+)
+
+# dotplot(ora_results, showCategory = 30, font.size = 8)+ 
+#   ggtitle("Over-representation analysis: Glycolysis")
+# 
+# ora_results %>%
+#   as_tibble() %>%
+#   select(1:9) %>%
+#   knitr::kable()
+
+```
+
+No results
+
+## The myc signature
+
+```{r}
+
+GO_myc = fromJSON(file = "./data/BILD_MYC_ONCOGENIC_SIGNATURE.v2023.1.Hs.json")
+GO_myc = GO_myc[["BILD_MYC_ONCOGENIC_SIGNATURE"]][["geneSymbols"]]
+# https://www.gsea-msigdb.org/gsea/msigdb/cards/BILD_MYC_ONCOGENIC_SIGNATURE
+
+```
+
+Highlight on the volcano plot of the genes found to be implicated in oxphos + table
+
+```{r, fig.height = 6, fig.width = 7}
+
+target = res_tbl1 %>% 
+  filter(toupper(gene)%in%GO_myc)
+
+res_tbl %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) > 1, 
+             label = ifelse(padj<0.05&log2FoldChange>=1|
+                              padj<0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "lightcoral")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  labs(title = "Mrpl28 vs scramble in Trp+")+
+  theme_bw()+
+  geom_point(data=target, 
+             aes(x=log2FoldChange,y=-log10(padj)), 
+             color='blue',
+             size=0.5)+
+  geom_text_repel(data = target, size = 3, segment.color = "blue",
+                  max.overlaps = 50, min.segment.length = 0, color = "blue",
+                  box.padding = 0.5)+
+  theme(legend.title= element_blank())
+
+target %>%
+  select(gene, log2FoldChange, padj, description) %>%
+  knitr::kable()
+
+```
+
+# Pattern search in data
+## Slcxxx transporters
+
+```{r, fig.height = 6, fig.width = 7}
+
+slc_pattern = res_tbl1[grep("slc",res_tbl1$gene, ignore.case = T),]
+
+res_tbl %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) > 1, 
+             label = ifelse(padj<0.05&log2FoldChange>=1|
+                              padj<0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "lightcoral")) +
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  theme_bw()+
+  geom_point(data=slc_pattern, 
+             aes(x=log2FoldChange,y=-log10(padj)), 
+             color='blue',
+             size=0.5)+
+  geom_text_repel(data = slc_pattern, size = 3, segment.color = "blue",
+                  max.overlaps = 30, min.segment.length = 0, color = "blue",
+                  box.padding = 0.5)+
+  theme(legend.title= element_blank())
+
+
+slc_pattern%>% 
+  select(gene, log2FoldChange, padj, description) %>% 
+  arrange(gene) %>% 
+  knitr::kable()
+```
+
+## Mitochondria mention in gene description
+
+```{r, fig.height = 6, fig.width = 7}
+
+mitoc_pattern = res_tbl1[grep("mitoc",res_tbl1$description, ignore.case = T),]
+
+res_tbl %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) > 1, 
+             label = ifelse(padj<0.05&log2FoldChange>=1|
+                              padj<0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "lightcoral")) +
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  theme_bw()+
+  geom_point(data=mitoc_pattern, 
+             aes(x=log2FoldChange,y=-log10(padj)), 
+             color='blue',
+             size=0.5)+
+  geom_text_repel(data = mitoc_pattern, size = 3, segment.color = "blue",
+                  max.overlaps = 30, min.segment.length = 0, color = "blue",
+                  box.padding = 0.5)+
+  theme(legend.title= element_blank())
+
+
+mitoc_pattern%>% 
+  select(gene, log2FoldChange, padj, description) %>%
+  arrange(gene) %>% 
+  knitr::kable()
+
+```

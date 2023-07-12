@@ -1,0 +1,1216 @@
+---
+title: "RAB234_summary_report"
+author: "Marion Hardy"
+date: "2023-05-31"
+output: 
+  html_document:
+    toc: true 
+    theme: spacelab 
+    highlight: monochrome
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+# This code has not been cleaned up but if you check summary_report2, everything has been cleaned up
+# and a little optimized
+# The document should be in the same folder
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, cache = TRUE, echo = FALSE, warning = F, cache.lazy = F)
+knitr::opts_chunk$set(fig.width=10, fig.height=15) 
+
+library(cowplot)
+library(DESeq2)
+library(RColorBrewer)
+library(pheatmap)
+library(tidyverse)
+library(ggrepel)
+library(clusterProfiler)
+library(msigdbr)
+library(readxl)
+library(eulerr)
+library(venndir)
+library(NMF)
+library(pheatmap)
+library(openxlsx)
+
+```
+
+
+```{r Data loading, include=FALSE}
+
+#all
+counts <- as.data.frame(read.csv("./data/RAB234_counts.csv", row.names = 1))
+coldata = read.csv("./data/coldata.csv")
+
+# trpn vs trpp
+#nonuc
+res_tbl <- read_csv("./data_output/Nonuc_Trpn_vs_Trpp/res_tbl.csv")
+diff <- read_csv("./data_output/Nonuc_Trpn_vs_Trpp/res_tbl_signif.csv")
+res_tbl1 <-  res_tbl %>% filter(!is.na(ENTREZID), padj<0.05)
+
+nonuc_trpn_trpp <- read_csv("./data_output/Nonuc_Trpn_vs_Trpp/res_tbl.csv")
+nonuc_trpn_trpp1 <-  nonuc_trpn_trpp %>% filter(!is.na(ENTREZID), padj<0.05)
+
+#mrpl
+mrpl_trpn_trpp =  read_csv("./data_output/Mrpl_Trpn_vs_Trpp/res_tbl.csv")
+mrpl_trpn_trpp1 = mrpl_trpn_trpp %>% filter(!is.na(ENTREZID), padj<0.05)
+
+#nduf
+nduf_trpn_trpp =  read_csv("./data_output/Nduf_Trpn_vs_Trpp/res_tbl.csv")
+nduf_trpn_trpp1 = nduf_trpn_trpp %>% filter(!is.na(ENTREZID), padj<0.05)
+
+# trpp
+#mrpl
+trpp_mrpl <- read_csv("./data_output/Trpp_Mrpl_vs_Scr/res_tbl.csv")
+trpp_mrpl1 <-  trpp_mrpl  %>% filter(!is.na(ENTREZID), padj<0.05)
+
+#nduf
+trpp_nduf <- read_csv("./data_output/Trpp_Nduf_vs_Scr/res_tbl.csv")
+trpp_nduf1 <-  trpp_nduf %>% filter(!is.na(ENTREZID), padj<0.05)
+
+#nonuc
+trpp_nonuc <- read_csv("./data_output/Trpp_Nonuc_vs_Scr/res_tbl.csv")
+trpp_nonuc1 <-  trpp_nduf %>% filter(!is.na(ENTREZID), padj<0.05)
+
+# trpn
+#mrpl
+trpn_mrpl <- read_csv("./data_output/Trpn_Mrpl_vs_Scr/res_tbl.csv")
+trpn_mrpl1 <-  trpn_mrpl %>% filter(!is.na(ENTREZID), padj<0.05)
+
+#nduf
+trpn_nduf <- read_csv("./data_output/Trpn_Nduf_vs_Scr/res_tbl.csv")
+trpn_nduf1 <-  trpn_nduf %>% filter(!is.na(ENTREZID), padj<0.05)
+
+#nonuc
+trpn_nonuc <- read_csv("./data_output/Trpn_Nonuc_vs_Scr/res_tbl.csv")
+trpn_nonuc1 <-  trpp_nduf %>% filter(!is.na(ENTREZID), padj<0.05)
+
+```
+
+# Introduction
+
+Data from  RAB : CD8+ T cells from mice
+
+- Cell types: not nucleofected, scramble, Nduf KO, Mrpl28 KO
+
+-   Conditions: treated w/ or w/o Tryptophan
+
+-   Biological replicates (3)
+
+Report based off of a conversation to tailor the analysis more to Raphaëlle's needs.
+
+
+# Sample similarity
+
+```{r, fig.height=6, fig.width=10}
+
+counts = counts[,-1]
+
+dds <- DESeqDataSetFromMatrix(countData = counts, colData = coldata,
+                              design = ~condition+celltype) 
+
+# Generate a linear model
+
+dds$condition <- relevel(dds$condition, "Trpp")
+dds <- DESeq(dds)
+
+# Checking PCA
+
+rld <- rlogTransformation(dds)
+
+p1 <- plotPCA(rld,intgroup="condition") # sample switch up?
+p2 <- plotPCA(rld,intgroup="celltype") 
+p3 <- plotPCA(rld,intgroup=c("condition","celltype")) # determine which samples to relabel
+
+plot_grid(p1, p2, p3, nrow = 2, align = "v")
+
+
+```
+
+```{r, fig.height=6, fig.width=8}
+
+# Checking sample similarity
+
+sampleDists <- dist(t(assay(dds)))
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- paste(dds$condition, dds$celltype, sep="-")
+colnames(sampleDistMatrix) <- NULL
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows=sampleDists,
+         clustering_distance_cols=sampleDists,
+         col=colors)
+```
+
+
+# All violin plots
+
+```{r, fig.width=12, fig.height=8}
+
+p1 =
+  res_tbl %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) >= 1, 
+             label = ifelse(padj<=0.05&log2FoldChange>=1|
+                              padj<=0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "firebrick3")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  geom_text_repel(max.overlaps = 15,
+                  box.padding = 0.25,
+                  segment.color = 'grey50',
+                  fontface = "italic")+
+  labs(title = "Trp- vs Trp+ in Not nucleofected cells")+
+  theme_bw()
+
+p2 =
+  trpn_mrpl %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) >= 1, 
+             label = ifelse(padj<=0.05&log2FoldChange>=1|
+                              padj<=0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "firebrick3")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  geom_text_repel(max.overlaps = 15,
+                  box.padding = 0.25,
+                  segment.color = 'grey50',
+                  fontface = "italic")+
+  labs(title = "Trp- Mrpl28 vs Scramble")+
+  theme_bw()
+
+p3 =
+  trpp_mrpl %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) >= 1, 
+             label = ifelse(padj<=0.05&log2FoldChange>=1|
+                              padj<=0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "firebrick3")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  geom_text_repel(max.overlaps = 15,
+                  box.padding = 0.25,
+                  segment.color = 'grey50',
+                  fontface = "italic")+
+  labs(title = "Trp+ Mrpl28 vs Scramble")+
+  theme_bw()
+
+p4 =
+  trpn_nduf %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) >= 1, 
+             label = ifelse(padj<=0.05&log2FoldChange>=1|
+                              padj<=0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "firebrick3")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  geom_text_repel(max.overlaps = 15,
+                  box.padding = 0.25,
+                  segment.color = 'grey50',
+                  fontface = "italic")+
+  labs(title = "Trp- Ndufa2 vs Scramble")+
+  theme_bw()
+
+p5 =
+  trpp_nduf %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) >= 1, 
+             label = ifelse(padj<=0.05&log2FoldChange>=1|
+                              padj<=0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "firebrick3")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  geom_text_repel(max.overlaps = 15,
+                  box.padding = 0.25,
+                  segment.color = 'grey50',
+                  fontface = "italic")+
+  labs(title = "Trp+ Ndufa2 vs Scramble")+
+  theme_bw()
+
+p6 =
+  trpn_nonuc %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) >= 1, 
+             label = ifelse(padj<=0.05&log2FoldChange>=1|
+                              padj<=0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "firebrick3")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  geom_text_repel(max.overlaps = 15,
+                  box.padding = 0.25,
+                  segment.color = 'grey50',
+                  fontface = "italic")+
+  labs(title = "Trp- Nonuc vs Scramble")+
+  theme_bw()
+
+p7 =
+  trpp_nonuc %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) >= 1, 
+             label = ifelse(padj<=0.05&log2FoldChange>=1|
+                              padj<=0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "firebrick3")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  geom_text_repel(max.overlaps = 15,
+                  box.padding = 0.25,
+                  segment.color = 'grey50',
+                  fontface = "italic")+
+  labs(title = "Trp+ Nonuc vs Scramble")+
+  theme_bw()
+
+p8 =
+  mrpl_trpn_trpp %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) >= 1, 
+             label = ifelse(padj<=0.05&log2FoldChange>=1|
+                              padj<=0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "firebrick3")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  geom_text_repel(max.overlaps = 15,
+                  box.padding = 0.25,
+                  segment.color = 'grey50',
+                  fontface = "italic")+
+  labs(title = "Mrpl28 KO Trp- vs Trp+")+
+  theme_bw()
+
+p9 =
+  nduf_trpn_trpp %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) >= 1, 
+             label = ifelse(padj<=0.05&log2FoldChange>=1|
+                              padj<=0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "firebrick3")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  geom_text_repel(max.overlaps = 15,
+                  box.padding = 0.25,
+                  segment.color = 'grey50',
+                  fontface = "italic")+
+  labs(title = "Ndufa2 KO Trp- vs Trp+")+
+  theme_bw()
+
+p1
+
+```
+
+```{r, fig.width=12, fig.height=12}
+
+plot_grid(p2, p3, p4, p5, p6, p7, p8, p9, nrow = 4, align = "v")
+
+```
+
+# Venn diagram
+
+```{r, fig.width=6, fig.height=6}
+
+library(ggvenn)
+library(ComplexHeatmap)
+library(UpSetR)
+
+x1 = res_tbl %>% 
+    filter(padj<=0.05, abs(log2FoldChange)>=1)
+
+x2 = trpp_mrpl %>% 
+    filter(padj<=0.05, abs(log2FoldChange)>=1)
+
+x3 = trpn_mrpl %>% 
+    filter(padj<=0.05, abs(log2FoldChange)>=1)
+
+x4 = trpp_nduf %>% 
+    filter(padj<=0.05, abs(log2FoldChange)>=1)
+
+x5 = trpn_nduf %>% 
+    filter(padj<=0.05, abs(log2FoldChange)>=1)
+
+overlap <- list(
+  "Mrpl28 Trp+ vs scr" =x2$gene,
+  "Mrpl28 Trp- vs scr" =x3$gene,
+  "Ndufa2 Trp+ vs scr" =x4$gene,
+  "Ndufa2 Trp- vs scr" =x5$gene)
+
+myCol <- brewer.pal(5, "Spectral")
+
+ggvenn(overlap, 
+       fill_color = myCol,
+       stroke_size = 0.5, set_name_size = 3, text_size = 3)
+
+```
+
+```{r, fig.width=12, fig.height=12, eval=FALSE}
+
+venndir(overlap,
+        #proportional=TRUE,
+        overlap_type="overlap",
+        #show_segments=FALSE,
+        label_preset="main items",
+        label_style="lite_box",
+        show_items="item",
+        item_cex=1)
+
+```
+
+
+# Nonuc Trpn vs Trpp
+## Volcano plot 
+
+```{r, fig.height = 15, fig.width = 15}
+
+res_tbl %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) >= 1, 
+             label = ifelse(padj<=0.05&log2FoldChange>=1|
+                              padj<=0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "firebrick3")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  geom_text_repel(max.overlaps = 15,
+                  box.padding = 0.25,
+                  segment.color = 'grey80',
+                  fontface = "italic")+
+  labs(title = "Trp- vs Trp+ in Not nucleofected cells")+
+  theme_bw()+
+   theme(axis.line = element_line(color='black'),
+    plot.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+
+ggsave(plot = last_plot(), "./figures/Nonuc_Trpn_vs_Trpp/Nonuc_Trpp_vs_Trpn_volcano.svg", dpi = 300,
+       height = 10, width = 15, device = "svg")
+
+```
+
+Getting some stats yay
+
+```{r, echo=TRUE}
+
+table(res_tbl$padj<=0.05) # significant genes
+
+table(res_tbl$padj<=0.05&res_tbl$log2FoldChange<=-1) # signif and downreg
+
+table(res_tbl$padj<=0.05&res_tbl$log2FoldChange>=1) # signif and upreg
+
+```
+
+## GSEA analysis logFc
+
+```{r}
+
+ordered_genes_fc <- res_tbl1$log2FoldChange
+names(ordered_genes_fc) <- res_tbl1$gene
+ordered_genes_fc <- sort(ordered_genes_fc, decreasing = T)
+
+```
+
+```{r}
+
+mm_GO_sets <- msigdbr(
+  species = "Mus musculus", 
+  category = "C5",
+  subcategory = "BP") # for gene ontology collection
+
+mm_reactome_sets <- msigdbr(
+  species = "Mus musculus", 
+  category = "C2",
+  subcategory = "CP:REACTOME") # for reactome collection
+
+mm_wiki_sets <- msigdbr(
+  species = "Mus musculus", 
+  category = "C2",
+  subcategory = "CP:WIKIPATHWAYS") # for Wikipathways collection
+
+mm_pert_sets <- msigdbr(
+  species = "Mus musculus", 
+  category = "C2",
+  subcategory = "CGP")
+
+mm_hallmark_sets <- msigdbr(
+  species = "Mus musculus", 
+  category = "H") # for hallmark collection
+
+mm_GO_gl = 
+  mm_GO_sets %>% 
+  filter(grepl("glycoly", gs_name, ignore.case = T)) %>% 
+  rbind(mm_hallmark_sets %>% filter(grepl("glycoly", gs_name, ignore.case = T))) %>% 
+  rbind(mm_reactome_sets %>% filter(grepl("glycoly", gs_name, ignore.case = T)))
+
+mm_GO_ox  = 
+  mm_GO_sets %>% 
+  filter(grepl("oxidative", gs_name, ignore.case = T)|
+         grepl("respiration", gs_name, ignore.case = T)) %>% 
+  rbind(mm_hallmark_sets %>% filter(grepl("oxidative", gs_name, ignore.case = T),
+         grepl("respiration", gs_name, ignore.case = T)) %>% 
+  rbind(mm_reactome_sets %>% filter(grepl("oxidative", gs_name, ignore.case = T))))
+
+mm_GO_tcell = 
+  mm_GO_sets %>% 
+  filter(grepl("t_cell", gs_name, ignore.case = T)) 
+
+mm_summary = 
+  mm_GO_sets %>% 
+  filter(gs_name %in% toupper(c("gobp_ribosome_biogenesis",
+                        "gobp_ribonucleoprotein_complex biogenesis", 
+                        "gobp_ncrna_metabolic_process","gobp_mitochondrial_gene_expression",
+                        "gobp_mitochondrial_translation", "gobp_trna metabolic_process",
+                        "gobp_trna metabolic_process",
+                        "gobp_inflammatory_response","gobp_amino_acid_activation"))) %>% 
+  rbind(mm_reactome_sets %>% filter(
+    gs_name%in% toupper(c("REACTOME_RESPONSE_OF_EIF2AK1_HRI_TO_HEME_DEFICIENCY",
+                          "reactome_translation",
+                          "reactome_mitochondrial_translation",
+                          "reactome_cholesterol_biosynthesis",
+                          "reactome_oxidative_stress_induced_senescence",
+                          "reactome_perk_regulates_gene_expression",
+                          "reactome_regulation_of_cholesterol_biosynthesis_ny_srebp_srebf",
+                          "reactome_dna_methylation",
+                          "REACTOME_ATF4_ACTIVATES_GENES_IN_RESPONSE_TO_ENDOPLASMIC_RETICULUM_STRESS",
+                          "reactome_sirt1_negatively_regulates_rrna_expression")))) %>% 
+  rbind(mm_hallmark_sets %>%  filter(gs_name %in% toupper(c("hallmark_unfolded_protein_response",
+                                                            "hallmark_myc_targets_v1",
+                                                            "hallmark_cholesterol_homeostasis"))))
+
+mm_ora_summary =
+  mm_GO_sets %>% 
+  filter(gs_name %in% toupper(c("gobp_t_cell_activation",
+                                "gobp_antigen_processing_and_presentation",
+                                "gobp_carbohydrate_catabolic_process",
+                                "gobp_positive_regulation_of_glycolytic_process",
+                                "gobp_regulation_of_antigen_processing_and_presentation",
+                                "gobp_regulation_of_atp_metabolic_process",
+                                "gobp_regulation_of_t_cell_activation",
+                                "gobp_calcium_mediated_signaling",
+                                "gobp_pyruvate_metabolic_process",
+                                "gobp_cellular_response_to_calcium_ion",
+                                "gobp_negative_regulation_of_leukocyte_apoptotic_process",
+                                "gobp_unsaturated_fatty_acid_biosynthesis_process",
+                                "gobp_regulation_of_glycolytic_process",
+                                "gobp_t_cell_differentiation",
+                                "gobp_adp_metabolic_process",
+                                "GOBP_STEROL_METABOLIC_PROCESS")))
+  
+mm_all = 
+  mm_GO_sets %>% 
+  rbind(mm_reactome_sets) %>% 
+  rbind(mm_hallmark_sets) %>% 
+  rbind(mm_wiki_sets)
+```
+
+### Summary
+
+```{r, fig.height=6, fig.width=7}
+
+gsea_results <- GSEA(
+  geneList = ordered_genes_fc, 
+  pvalueCutoff = 1, 
+  eps = 0, 
+  pAdjustMethod = "BH", 
+  nPermSimple = 10000,
+  TERM2GENE = dplyr::select(
+    mm_summary,
+    gs_name,
+    gene_symbol
+  )
+)
+
+dotplot(gsea_results, x = "NES", showCategory = 30, font.size = 7)+ 
+  labs(title = "GSEA",
+              subtitle = " Trp 70 µM vs Trp 4 µM for 72h")+
+   theme(axis.line = element_line(color='black'),
+    plot.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+
+ggsave(plot = last_plot(), 
+       "./figures/Nonuc_Trpn_vs_Trpp/Nonuc_Trpp_vs_Trpn_gsea.svg", 
+       dpi = 300,
+       height = 6, width = 5, device = "svg")
+
+gsea_results%>% 
+  as_tibble() %>% 
+  select(ID, setSize,	enrichmentScore,	NES,	pvalue,	p.adjust,	qvalue) %>%
+  knitr::kable()
+
+write.xlsx(gsea_results, "./data_output/Nonuc_Trpn_vs_Trpp/Nonuc_Trpp_vs_Trpn_gsea.xlsx")
+
+```
+
+
+```{r, eval=FALSE}
+
+cnetplot(gsea_results, foldChange=ordered_genes_fc, showCategory = 50,
+         cex_label_category = .5, cex_label_gene = .5)
+```
+
+## ORA
+### Summary
+
+```{r, fig.height = 5, fig.width = 7}
+
+up = res_tbl1 %>% filter(abs(log2FoldChange) >= 1)
+up = up$gene
+
+ora_results <- enricher(
+  gene = up, 
+  pvalueCutoff = 0.05, 
+  pAdjustMethod = "BH", 
+  TERM2GENE = dplyr::select(
+    mm_GO_sets,
+    gs_name,
+    gene_symbol
+  )
+)
+
+targetora = toupper(c("gobp_t_cell_activation",
+                                "gobp_carbohydrate_catabolic_process",
+                                "gobp_positive_regulation_of_glycolytic_process",
+                                "gobp_regulation_of_atp_metabolic_process",
+                                "gobp_calcium_mediated_signaling",
+                                "gobp_pyruvate_metabolic_process",
+                                "gobp_cellular_response_to_calcium_ion",
+                                "gobp_negative_regulation_of_leukocyte_apoptotic_process",
+                                "gobp_unsaturated_fatty_acid_biosynthesis_process",
+                                "gobp_regulation_of_glycolytic_process",
+                                "gobp_t_cell_differentiation",
+                                "gobp_adp_metabolic_process",
+                                "GOBP_STEROL_METABOLIC_PROCESS"))
+
+ora_results %>% 
+  filter(ora_results@result$ID %in% targetora) %>% 
+  dotplot(showCategory = 30, font.size = 7)+ 
+  labs(title = "Over-representation analysis",
+              subtitle = " Trp 70 µM vs Trp 4 µM for 72h")+
+   theme(axis.line = element_line(color='black'),
+    plot.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+
+ggsave(plot = last_plot(), "./figures/Nonuc_Trpn_vs_Trpp/Nonuc_Trpp_vs_Trpn_ora_dotplot.svg", dpi = 300,
+       height = 5, width = 5, device = "svg")
+
+ora_results %>% 
+  filter(ora_results@result$ID %in% targetora) %>% 
+  barplot(showCategory = 30, font.size = 7)+ 
+   labs(title = "Over-representation analysis",
+              subtitle = " Trp 70 µM vs Trp 4 µM for 72h")+
+   theme(axis.line = element_line(color='black'),
+    plot.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+
+ggsave(plot = last_plot(), "./figures/Nonuc_Trpn_vs_Trpp/Nonuc_Trpp_vs_Trpn_ora_barplot.svg", dpi = 300,
+       height = 5, width = 5, device = "svg")
+ 
+ora_results %>%
+  filter(ora_results@result$ID %in% targetora) %>% 
+  as_tibble() %>%
+  select(ID, GeneRatio,	p.adjust,	qvalue) %>%
+  knitr::kable()
+
+write.xlsx(ora_results, "./data_output/Nonuc_Trpn_vs_Trpp/Nonuc_Trpp_vs_Trpn_ora.xlsx")
+
+```
+
+## qPCR-tested targets
+
+```{r, fig.width=3, fig.height=2}
+
+glyc_targ = res_tbl1 %>% 
+  filter(gene%in%c("Hk2","Ldha","Pdha","Pdk1"))
+
+res_tbl %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) > 1, 
+             label = ifelse(padj<0.05&log2FoldChange>=1|
+                              padj<0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "lightcoral")) +
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  theme_bw()+
+  geom_point(data=glyc_targ, 
+             aes(x=log2FoldChange,y=-log10(padj)), 
+             color='blue',
+             size=0.5)+
+  geom_text_repel(data = glyc_targ, size = 3, segment.color = "blue",
+                  max.overlaps = 30, min.segment.length = 0, color = "blue",
+                  box.padding = 0.5)+
+  theme(legend.title= element_blank())
+
+
+glyc_targ %>%
+  select(ensembl, baseMean, log2FoldChange, padj, gene, description) %>% 
+  knitr::kable()
+
+```
+
+## Heatmap : gene expression per condition
+
+```{r}
+
+dds = readRDS("./data_output/Nonuc_Trpp_vs_Trpn/dds.rds")
+diff = read.csv("./data_output/Nonuc_Trpp_vs_Trpn/res_tbl_signif.csv")
+
+reslog = rlog(dds, blind = FALSE)
+mat = assay(reslog)
+
+coldata = as.data.frame(colData(reslog))
+colnames(mat) = rownames(coldata)
+
+# Do the scaling to get z-scores
+
+basemean = rowMeans(mat)
+mats = t(apply(mat, 1, scale))
+colnames(mats) = colnames(mat)
+
+mats = mats[diff$ensembl,]
+rownames(mats) = diff$gene
+
+head(mats)
+```
+
+
+```{r, fig.width=6, fig.height=8}
+
+pos_reg_gly = ora_results %>%
+  as_tibble() %>%
+  filter(ID == "GOBP_POSITIVE_REGULATION_OF_GLYCOLYTIC_PROCESS") %>%
+  select(geneID)
+
+temp = pos_reg_gly$geneID
+temp = gsub("/"," ", temp)
+# temp = str_replace_all(temp, "\\b([\\w-]+)\\b", "'\\1'")
+
+reg_atp = ora_results %>%
+  as_tibble() %>%
+  filter(ID == "GOBP_REGULATION_OF_ATP_METABOLIC_PROCESS") %>%
+  select(geneID)
+
+temp = reg_atp$geneID
+temp = gsub("/"," ", temp)
+
+# select only the targets to show on the heatmap
+
+m = mats[rownames(mats)%in%c("Prxl2c", "Entpd5", "Hif1a", "P2rx7", "App", "Mlxipl",
+                             "Htr2a", "Prkaa2", "Prkaa1","Slc4a4", "Gapdhs",
+                             "Nupr1", "Prxl2c", "Shmt2", "Entpd5", "Dnajc15", "Hdac4", "Sphk2",
+                             "Hif1a", "Slc2a6", "Trp53", "Tspo", "Ak4", "Slc25a33", "Slc25a23",
+                             "P2rx7","Gck", "App", "Mlxipl", "Cbfa2t3", "Htr2a", "Cox7a1",
+                             "Prkaa2", "Pid1", "Slc4a4", "Gapdhs", "Atf4"),]
+
+targets = res_tbl %>% filter(gene%in%c("Prxl2c", "Entpd5", "Hif1a", "P2rx7", "App", "Mlxipl",
+                             "Htr2a", "Prkaa2", "Prkaa1","Slc4a4", "Gapdhs",
+                             "Nupr1", "Prxl2c", "Shmt2", "Entpd5", "Dnajc15", "Hdac4", "Sphk2",
+                             "Hif1a", "Slc2a6", "Trp53", "Tspo", "Ak4", "Slc25a33", "Slc25a23",
+                             "P2rx7","Gck", "App", "Mlxipl", "Cbfa2t3", "Htr2a", "Cox7a1",
+                             "Prkaa2", "Pid1", "Slc4a4", "Gapdhs", "Atf4"))
+
+# aheatmap(m, color = rev(brewer.pal(9,"RdBu")), annColors = "Set2", scale = "none")
+
+pheatmap(m, main="Glycolysis and ATP metabolism heatmap", 
+         cluster_cols=T,fontsize_row=8, border_color=NA)
+
+c("Prxl2c", "Entpd5", "Hif1a", "P2rx7", "App", "Mlxipl",
+                             "Htr2a", "Prkaa2", "Prkaa1","Slc4a4", "Gapdhs",
+                             "Nupr1", "Prxl2c", "Shmt2", "Entpd5", "Dnajc15", "Hdac4", "Sphk2",
+                             "Hif1a", "Slc2a6", "Trp53", "Tspo", "Ak4", "Slc25a33", "Slc25a23",
+                             "P2rx7","Gck", "App", "Mlxipl", "Cbfa2t3", "Htr2a", "Cox7a1",
+                             "Prkaa2", "Pid1", "Slc4a4", "Gapdhs", "Atf4")
+```
+
+```{r, fig.height=7, fig.width=8}
+
+res_tbl %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) > 1, 
+             label = ifelse(padj<0.05&log2FoldChange>=1|
+                              padj<0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "lightcoral")) +
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  theme_bw()+
+  geom_point(data=targets, 
+             aes(x=log2FoldChange,y=-log10(padj)), 
+             color='blue',
+             size=0.5)+
+  geom_text_repel(data = targets, size = 3, segment.color = "blue",
+                  max.overlaps = 30, min.segment.length = 0, color = "blue",
+                  box.padding = 0.5)+
+  theme(legend.title= element_blank())
+
+```
+
+# Trpp Mrpl28 KO vs scramble
+## Volcano plot 
+
+```{r, fig.height = 15, fig.width = 15}
+
+trpp_mrpl  %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) >= 1, 
+             label = ifelse(padj<=0.05&log2FoldChange>=1|
+                              padj<=0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "firebrick3")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  geom_text_repel(max.overlaps = 15,
+                  box.padding = 0.25,
+                  segment.color = 'grey80',
+                  fontface = "italic")+
+  labs(title = "Mrpl28 KO cells vs scramble cells in Trp+")+
+  theme_bw()+
+   theme(axis.line = element_line(color='black'),
+    plot.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+
+ggsave(plot = last_plot(), "./figures/Trpp_Mrpl_vs_Scr/Trpp_Mrpl_vs_Scr_volcano.svg", dpi = 300,
+       height = 10, width = 15, device = "svg")
+
+```
+
+Getting some stats yay
+
+```{r, echo=TRUE}
+
+table(res_tbl$padj<=0.05) # significant genes
+
+table(res_tbl$padj<=0.05&res_tbl$log2FoldChange<=-1) # signif and downreg
+
+table(res_tbl$padj<=0.05&res_tbl$log2FoldChange>=1) # signif and upreg
+
+```
+
+## GSEA analysis logFc
+
+Nous n'inclurons pas l'analyse GSEA pour les Mrpl28 KO Trpp parce que les p-valeurs ne sont pas intéressantes.
+
+
+## ORA
+### Summary
+
+```{r, fig.height = 5, fig.width = 7}
+
+up = trpp_mrpl1 %>% filter(abs(log2FoldChange) >= 1)
+up = up$gene
+
+ora_results <- enricher(
+  gene = up, 
+  pvalueCutoff = 0.05, 
+  pAdjustMethod = "BH", 
+  TERM2GENE = dplyr::select(
+    mm_GO_sets,
+    gs_name,
+    gene_symbol
+  )
+)
+
+targetora = toupper(c("gobp_response_to_oxygen_levels",
+                      "gobp_cellular_response_to_oxygen_levels",
+                      "gobp_pyruvate_metabolic_process",
+                      "gobp_atp_metabolic_process",
+                      "gobp_adp_metabolic_process",
+                      "gobp_nucelotide_phosphorylation",
+                      "gobp_carbohydrate_catabolic_process",
+                      "gobp_generation_of_precursor_metabolites_and_energy"))
+
+ora_results %>% 
+  filter(ora_results@result$ID %in% targetora) %>% 
+  dotplot(showCategory = 30, font.size = 8)+ 
+  ggtitle("Over-representation analysis")+
+   theme(axis.line = element_line(color='black'),
+    plot.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+
+ggsave(plot = last_plot(), "./figures/Trpp_Mrpl_vs_Scr/Trpp_Mrpl_vs_Scr_ora_dotplot.svg", dpi = 300,
+       height = 4, width = 6, device = "svg")
+
+ora_results %>% 
+  filter(ora_results@result$ID %in% targetora) %>% 
+  barplot(showCategory = 30, font.size = 8)+ 
+  ggtitle("Over-representation analysis")+
+   theme(axis.line = element_line(color='black'),
+    plot.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+
+ggsave(plot = last_plot(), "./figures/Trpp_Mrpl_vs_Scr/Trpp_Mrpl_vs_Scr_ora_barplot.svg", dpi = 300,
+       height = 4, width = 6, device = "svg")
+ 
+ora_results %>%
+  filter(ora_results@result$ID %in% targetora) %>% 
+  as_tibble() %>%
+  select(ID, GeneRatio,	p.adjust,	qvalue) %>%
+  knitr::kable()
+
+write.xlsx(ora_results, "./data_output/Trpp_Mrpl_vs_Scr/Trpp_Mrpl_vs_Scr_ora.xlsx")
+
+```
+
+## Heatmap : gene expression per condition
+
+```{r}
+
+dds = readRDS("./data_output/Trpp_Mrpl_vs_Scr/dds.rds")
+diff = read.csv("./data_output/Trpp_Mrpl_vs_Scr/res_tbl_signif.csv")
+
+reslog = rlog(dds, blind = FALSE)
+mat = assay(reslog)
+
+coldata = as.data.frame(colData(reslog))
+colnames(mat) = rownames(coldata)
+
+# Do the scaling to get z-scores
+
+basemean = rowMeans(mat)
+mats = t(apply(mat, 1, scale))
+colnames(mats) = colnames(mat)
+
+mats = mats[diff$ensembl,]
+rownames(mats) = diff$gene
+
+head(mats)
+```
+
+
+```{r, fig.width=6, fig.height=8}
+
+precur = ora_results %>%
+  as_tibble() %>%
+  filter(ID == "GOBP_GENERATION_OF_PRECURSOR_METABOLITES_AND_ENERGY") %>%
+  select(geneID)
+
+temp = precur$geneID
+temp = gsub("/"," ", temp)
+# temp = str_replace_all(temp, "\\b([\\w-]+)\\b", "'\\1'")
+temp
+
+reg_atp = ora_results %>%
+  as_tibble() %>%
+  filter(ID == "GOBP_ATP_METABOLIC_PROCESS") %>%
+  select(geneID)
+
+temp = reg_atp$geneID
+temp = gsub("/"," ", temp)
+temp
+
+# select only the targets to show on the heatmap
+
+m = mats[rownames(mats)%in%c("Me1", "Nos2", "Cox6a2", "Bnip3", "Ak4", "mt-Nd2", "Pgm1",
+                             "P4ha2", "Gys1", "Gipr", "Gck", "Nupr1", "Pgam1", "Aldoc", 
+                             "Pygl", "Slc4a4", "Pfkl", "Gbe1", "Bnip3","Mrpl28",
+                             "Fam162a","Cxcr4","Gapdh"),]
+
+# aheatmap(m, color = rev(brewer.pal(9,"RdBu")), annColors = "Set2", scale = "none")
+
+pheatmap(m, main="ATP and precursors metabolism heatmap", 
+         cluster_cols=F,fontsize_row=8, border_color=NA)
+
+targets = trpp_mrpl %>% filter(gene%in%c("Me1", "Nos2", "Cox6a2", "Bnip3", "Ak4", "mt-Nd2", "Pgm1",
+                             "P4ha2", "Gys1", "Gipr", "Gck", "Nupr1", "Pgam1", "Aldoc", 
+                             "Pygl", "Slc4a4", "Pfkl", "Gbe1", "Bnip3","Mrpl28",
+                             "Fam162a","Cxcr4","Gapdh"))
+
+```
+
+All genes implicated in ATP metabolism, precursor generation and response to oxygen are the same ones.
+
+```{r, fig.height=7, fig.width=8}
+
+trpp_mrpl %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) > 1, 
+             label = ifelse(padj<0.05&log2FoldChange>=1|
+                              padj<0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "lightcoral")) +
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  theme_bw()+
+  geom_point(data=targets, 
+             aes(x=log2FoldChange,y=-log10(padj)), 
+             color='blue',
+             size=0.5)+
+  geom_text_repel(data = targets, size = 3, segment.color = "blue",
+                  max.overlaps = 30, min.segment.length = 0, color = "blue",
+                  box.padding = 0.5)+
+  theme(legend.title= element_blank())
+```
+
+# Trpp Ndufa2 KO vs scramble
+## Volcano plot 
+
+```{r, fig.height = 15, fig.width = 15}
+
+trpp_nduf  %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) >= 1, 
+             label = ifelse(padj<=0.05&log2FoldChange>=1|
+                              padj<=0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "firebrick3")) +
+  labs(col="Significantly expressed")+
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  geom_text_repel(max.overlaps = 15,
+                  box.padding = 0.25,
+                  segment.color = 'grey80',
+                  fontface = "italic")+
+  labs(title = "Ndufa2 KO cells vs scramble cells in Trp+")+
+  theme_bw()+
+   theme(axis.line = element_line(color='black'),
+    plot.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+
+ggsave(plot = last_plot(), "./figures/Trpp_Nduf_vs_Scr/Trpp_Mrpl_vs_Scr_volcano.svg", dpi = 300,
+       height = 10, width = 15, device = "svg")
+
+```
+
+Getting some stats yay
+
+```{r, echo=TRUE}
+
+table(res_tbl$padj<=0.05) # significant genes
+
+table(res_tbl$padj<=0.05&res_tbl$log2FoldChange<=-1) # signif and downreg
+
+table(res_tbl$padj<=0.05&res_tbl$log2FoldChange>=1) # signif and upreg
+
+```
+
+## GSEA analysis logFc
+
+Nous n'inclurons pas l'analyse GSEA pour les Ndufa2 KO Trpp parce que les p-valeurs ne sont pas intéressantes.
+
+
+## ORA
+### Summary
+
+```{r, fig.height = 5, fig.width = 7}
+
+up = trpp_nduf1 %>% filter(abs(log2FoldChange) >= 1)
+up = up$gene
+
+ora_results <- enricher(
+  gene = up, 
+  pvalueCutoff = 0.05, 
+  pAdjustMethod = "BH", 
+  TERM2GENE = dplyr::select(
+    mm_all,
+    gs_name,
+    gene_symbol
+  )
+)
+
+targetora = toupper(c("gobp_response_to_oxygen_levels",
+                      "gobp_cellular_response_to_oxygen_levels",
+                      "gobp_pyruvate_metabolic_process",
+                      "gobp_atp_metabolic_process",
+                      "gobp_adp_metabolic_process",
+                      "gobp_nucelotide_phosphorylation",
+                      "gobp_carbohydrate_catabolic_process",
+                      "gobp_generation_of_precursor_metabolites_and_energy",
+                      "gobp_nad_metabolic_process",
+                      "gobp_nadh_metabolic_process",
+                      "gobp_nadh_regeneration",
+                      "gobp_glycolytic_process_through_fructose_6_phosphate",
+                      "gobp_glucose_catabolic_process",
+                      "reactome_metabolism_of_carbohydrates",
+                      "reactome_glycolysis",
+                      "reactome_glucose_metabolism",
+                      "hallmark_hypoxia",
+                      "hallmark_glycolysis",
+                      "almmark_mtorc1_signaling",
+                      "wp_glycolysis_and_gluconeogenesis",
+                      "wp_aerobic_glycolysis"))
+
+ora_results %>% 
+  filter(ora_results@result$ID %in% targetora) %>% 
+  dotplot(showCategory = 30, font.size = 8)+ 
+  ggtitle("Over-representation analysis")+
+   theme(axis.line = element_line(color='black'),
+    plot.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+
+ggsave(plot = last_plot(), "./figures/Trpp_Nduf_vs_Scr/Trpp_Nduf_vs_Scr_ora_dotplot.svg", dpi = 300,
+       height = 7, width = 8, device = "svg")
+
+ora_results %>% 
+  filter(ora_results@result$ID %in% targetora) %>% 
+  barplot(showCategory = 30, font.size = 8)+ 
+  ggtitle("Over-representation analysis")+
+   theme(axis.line = element_line(color='black'),
+    plot.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+
+ggsave(plot = last_plot(), "./figures/Trpp_Nduf_vs_Scr/Trpp_Nduf_vs_Scr_ora_barplot.svg", dpi = 300,
+       height = 4, width = 6, device = "svg")
+ 
+ora_results %>%
+  filter(ora_results@result$ID %in% targetora) %>% 
+  as_tibble() %>%
+  select(ID, GeneRatio,	p.adjust,	qvalue) %>%
+  knitr::kable()
+
+write.xlsx(ora_results, "./figures/Trpp_Nduf_vs_Scr/Trpp_Nduf_vs_Scr_ora.xlsx")
+
+```
+
+## Heatmap : gene expression per condition
+
+```{r}
+
+dds = readRDS("./data_output/Trpp_Nduf_vs_Scr/dds.rds")
+diff = read.csv("./data_output/Trpp_Nduf_vs_Scr/res_tbl_signif.csv")
+
+reslog = rlog(dds, blind = FALSE)
+mat = assay(reslog)
+
+coldata = as.data.frame(colData(reslog))
+colnames(mat) = rownames(coldata)
+
+# Do the scaling to get z-scores
+
+basemean = rowMeans(mat)
+mats = t(apply(mat, 1, scale))
+colnames(mats) = colnames(mat)
+
+mats = mats[diff$ensembl,]
+rownames(mats) = diff$gene
+
+head(mats)
+```
+
+
+```{r, fig.width=6, fig.height=8}
+
+precur = ora_results %>%
+  as_tibble() %>%
+  filter(ID == "GOBP_GENERATION_OF_PRECURSOR_METABOLITES_AND_ENERGY") %>%
+  select(geneID)
+
+temp = precur$geneID
+temp = gsub("/"," ", temp)
+# temp = str_replace_all(temp, "\\b([\\w-]+)\\b", "'\\1'")
+temp
+
+wp_glyc = ora_results %>%
+  as_tibble() %>%
+  filter(ID == "WP_GLYCOLYSIS_AND_GLUCONEOGENESIS") %>%
+  select(geneID)
+
+temp = reg_atp$geneID
+temp = gsub("/"," ", temp)
+temp
+
+# select only the targets to show on the heatmap
+
+m = mats[rownames(mats)%in%c("Me1", "Nos2", "Cox6a2", "Bnip3", "Ak4", "mt-Nd2", "Pgm1",
+                             "P4ha2", "Gys1", "Gipr", "Gck", "Nupr1", "Pgam1", "Aldoc", 
+                             "Pygl", "Slc4a4", "Pfkl", "Gbe1", "Bnip3","Mrpl28",
+                             "Fam162a","Cxcr4","Gapdh"),]
+
+# aheatmap(m, color = rev(brewer.pal(9,"RdBu")), 
+#          annColors = "Set2", scale = "none", 
+#          main = "ATP and precursors metabolism heatmap")
+
+pheatmap(m, main="ATP and precursors metabolism heatmap", 
+         cluster_cols=T,fontsize_row=10, border_color=NA, 
+         legend = T,)
+
+
+targets = trpp_nduf %>% filter(gene%in%c("Me1", "Nos2", "Cox6a2", "Bnip3", "Ak4", "mt-Nd2", "Pgm1",
+                             "P4ha2", "Gys1", "Gipr", "Gck", "Nupr1", "Pgam1", "Aldoc", 
+                             "Pygl", "Slc4a4", "Pfkl", "Gbe1", "Bnip3","Mrpl28",
+                             "Fam162a","Cxcr4","Gapdh"))
+
+```
+
+
+
+```{r, fig.height=7, fig.width=8}
+
+trpp_nduf %>%
+  filter(!is.na(padj)) %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj),
+             color = padj < 0.05 & abs(log2FoldChange) > 1, 
+             label = ifelse(padj<0.05&log2FoldChange>=1|
+                              padj<0.05&log2FoldChange<=-1,as.character(gene),''))) +
+  scale_colour_manual(values = c("gray", "lightcoral")) +
+  geom_point(size = 0.5) +
+  geom_hline(yintercept = -log10(0.05)) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = -1)+
+  theme_bw()+
+  geom_point(data=targets, 
+             aes(x=log2FoldChange,y=-log10(padj)), 
+             color='blue',
+             size=0.5)+
+  geom_text_repel(data = targets, size = 3, segment.color = "blue",
+                  max.overlaps = 30, min.segment.length = 0, color = "blue",
+                  box.padding = 0.5)+
+  theme(legend.title= element_blank())
+
+```
