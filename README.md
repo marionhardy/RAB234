@@ -54,6 +54,7 @@ Other comparisons:
 - GSEA and ORA with filtered terms of interest
 - cnet plots
 - Heatmap with z-score for metabolic signature
+- Heatmap with logFc comparisons of multiple conditions
 - Volcano plots with the genes from the signatures highlighted
 
 
