@@ -1,7 +1,7 @@
 # RAB234
 ## Project summary
 
-Mouse-isolated T cells treated with Trp+ or - medium for 72 hours.
+Mouse-isolated T cells treated with Trp 70 uM or 4 uM medium for 72 hours.
 
 - Non nucleofected cells : Nonuc
 - Scramble cells : Scr
