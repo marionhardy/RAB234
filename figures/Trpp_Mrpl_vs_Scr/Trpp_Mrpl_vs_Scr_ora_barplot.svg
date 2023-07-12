@@ -1,0 +1,82 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' class='svglite' width='432.00pt' height='288.00pt' viewBox='0 0 432.00 288.00'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite line, .svglite polyline, .svglite polygon, .svglite path, .svglite rect, .svglite circle {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+    .svglite text {
+      white-space: pre;
+    }
+  ]]></style>
+</defs>
+<rect width='100%' height='100%' style='stroke: none; fill: none;'/>
+<defs>
+  <clipPath id='cpMC4wMHw0MzIuMDB8MC4wMHwyODguMDA='>
+    <rect x='0.00' y='0.00' width='432.00' height='288.00' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHw0MzIuMDB8MC4wMHwyODguMDA=)'>
+</g>
+<defs>
+  <clipPath id='cpMTYyLjQ0fDM2NC43MXwyMy4zNHwyNTkuODM='>
+    <rect x='162.44' y='23.34' width='202.28' height='236.49' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMTYyLjQ0fDM2NC43MXwyMy4zNHwyNTkuODM=)'>
+<rect x='162.44' y='23.34' width='202.28' height='236.49' style='stroke-width: 1.07; stroke: none; fill: #FFFFFF;' />
+<rect x='171.63' y='28.26' width='153.24' height='29.56' style='stroke-width: 1.07; stroke: none; stroke-linecap: square; stroke-linejoin: miter; fill: #FF0000;' />
+<rect x='171.63' y='61.11' width='183.89' height='29.56' style='stroke-width: 1.07; stroke: none; stroke-linecap: square; stroke-linejoin: miter; fill: #FE0004;' />
+<rect x='171.63' y='93.96' width='102.16' height='29.56' style='stroke-width: 1.07; stroke: none; stroke-linecap: square; stroke-linejoin: miter; fill: #FE0008;' />
+<rect x='171.63' y='126.80' width='81.73' height='29.56' style='stroke-width: 1.07; stroke: none; stroke-linecap: square; stroke-linejoin: miter; fill: #FE0008;' />
+<rect x='171.63' y='159.65' width='81.73' height='29.56' style='stroke-width: 1.07; stroke: none; stroke-linecap: square; stroke-linejoin: miter; fill: #FB001A;' />
+<rect x='171.63' y='192.49' width='81.73' height='29.56' style='stroke-width: 1.07; stroke: none; stroke-linecap: square; stroke-linejoin: miter; fill: #CF0080;' />
+<rect x='171.63' y='225.34' width='102.16' height='29.56' style='stroke-width: 1.07; stroke: none; stroke-linecap: square; stroke-linejoin: miter; fill: #0000FF;' />
+<rect x='162.44' y='23.34' width='202.28' height='236.49' style='stroke-width: 1.07; stroke: #333333;' />
+</g>
+<g clip-path='url(#cpMC4wMHw0MzIuMDB8MC4wMHwyODguMDA=)'>
+<polyline points='162.44,259.83 162.44,23.34 ' style='stroke-width: 1.07; stroke-linecap: butt;' />
+<text x='157.51' y='242.99' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='130.69px' lengthAdjust='spacingAndGlyphs'>GOBP ATP METABOLIC PROCESS</text>
+<text x='157.51' y='205.83' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='139.56px' lengthAdjust='spacingAndGlyphs'>GOBP CARBOHYDRATE CATABOLIC</text>
+<text x='157.51' y='214.47' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='39.11px' lengthAdjust='spacingAndGlyphs'>PROCESS</text>
+<text x='157.51' y='172.98' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='116.91px' lengthAdjust='spacingAndGlyphs'>GOBP PYRUVATE METABOLIC</text>
+<text x='157.51' y='181.62' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='39.11px' lengthAdjust='spacingAndGlyphs'>PROCESS</text>
+<text x='157.51' y='144.45' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='131.57px' lengthAdjust='spacingAndGlyphs'>GOBP ADP METABOLIC PROCESS</text>
+<text x='157.51' y='107.29' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='126.68px' lengthAdjust='spacingAndGlyphs'>GOBP CELLULAR RESPONSE TO</text>
+<text x='157.51' y='115.93' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='66.69px' lengthAdjust='spacingAndGlyphs'>OXYGEN LEVELS</text>
+<text x='157.51' y='74.44' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='144.88px' lengthAdjust='spacingAndGlyphs'>GOBP GENERATION OF PRECURSOR</text>
+<text x='157.51' y='83.08' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='111.12px' lengthAdjust='spacingAndGlyphs'>METABOLITES AND ENERGY</text>
+<text x='157.51' y='45.91' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='152.03px' lengthAdjust='spacingAndGlyphs'>GOBP RESPONSE TO OXYGEN LEVELS</text>
+<polyline points='159.70,240.12 162.44,240.12 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='159.70,207.28 162.44,207.28 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='159.70,174.43 162.44,174.43 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='159.70,141.58 162.44,141.58 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='159.70,108.74 162.44,108.74 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='159.70,75.89 162.44,75.89 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='159.70,43.04 162.44,43.04 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='162.44,259.83 364.71,259.83 ' style='stroke-width: 1.07; stroke-linecap: butt;' />
+<polyline points='171.63,262.57 171.63,259.83 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='222.71,262.57 222.71,259.83 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='273.79,262.57 273.79,259.83 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='324.87,262.57 324.87,259.83 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<text x='171.63' y='270.50' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='4.45px' lengthAdjust='spacingAndGlyphs'>0</text>
+<text x='222.71' y='270.50' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='4.45px' lengthAdjust='spacingAndGlyphs'>5</text>
+<text x='273.79' y='270.50' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='8.90px' lengthAdjust='spacingAndGlyphs'>10</text>
+<text x='324.87' y='270.50' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='8.90px' lengthAdjust='spacingAndGlyphs'>15</text>
+<text x='263.58' y='280.75' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='21.35px' lengthAdjust='spacingAndGlyphs'>Count</text>
+<rect x='375.67' y='85.00' width='50.85' height='113.16' style='stroke-width: 1.07; stroke: none; fill: #FFFFFF;' />
+<image width='17.28' height='86.40' x='381.15' y='106.29' preserveAspectRatio='none' xlink:href='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAEsCAYAAAACUNnVAAAApUlEQVQ4ja2S2w4DIQhED/T/f7dJL0ofdmtrBWU3fTE4ZxgwEQNTUNRQtmo/Lr0m7SqRJqj19FsLrgnLqoN1ANO8eUBI+at5lRI+wUvJTht9/qDZs8JNE8MTvXPtkPmMltveDgeEG3g/wge0qFlywjxoY0eonQS2Xig0Z0F1wYzWPq9GHdXpqL/gTWtPQ1AaKL1WEPS5VezV53gg6B1Bb4BeEQCzF/afs1+LssM0AAAAAElFTkSuQmCC'/>
+<text x='403.91' y='169.04' style='font-size: 8.80px; font-family: "Arial";' textLength='17.13px' lengthAdjust='spacingAndGlyphs'>0.02</text>
+<text x='403.91' y='138.55' style='font-size: 8.80px; font-family: "Arial";' textLength='17.13px' lengthAdjust='spacingAndGlyphs'>0.01</text>
+<text x='381.15' y='99.59' style='font-size: 11.00px; font-family: "Arial";' textLength='38.53px' lengthAdjust='spacingAndGlyphs'>p.adjust</text>
+<line x1='381.15' y1='165.89' x2='384.61' y2='165.89' style='stroke-width: 0.38; stroke: #FFFFFF; stroke-linecap: butt;' />
+<line x1='381.15' y1='135.40' x2='384.61' y2='135.40' style='stroke-width: 0.38; stroke: #FFFFFF; stroke-linecap: butt;' />
+<line x1='394.98' y1='165.89' x2='398.43' y2='165.89' style='stroke-width: 0.38; stroke: #FFFFFF; stroke-linecap: butt;' />
+<line x1='394.98' y1='135.40' x2='398.43' y2='135.40' style='stroke-width: 0.38; stroke: #FFFFFF; stroke-linecap: butt;' />
+<text x='162.44' y='14.94' style='font-size: 13.20px; font-family: "Arial";' textLength='168.63px' lengthAdjust='spacingAndGlyphs'>Over-representation analysis</text>
+</g>
+</svg>
